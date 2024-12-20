@@ -1,0 +1,14 @@
+enclave {
+    untrusted {
+        void ocall_serialized();
+        void ocall_print_string([in, string] const char*str);
+        void ocall_element_printf([in, size=len_g] uint8_t *buffer_g, size_t len_g, int additional_value);
+    };
+    trusted {
+        
+        public void ecall_serialized([in, size=len_g1] uint8_t *buffer_g1, size_t len_g1,
+                              [in, size=len_g2] uint8_t *buffer_g2, size_t len_g2,
+                              [in, size=len_gt] uint8_t *buffer_gt, size_t len_gt);
+
+    };
+};

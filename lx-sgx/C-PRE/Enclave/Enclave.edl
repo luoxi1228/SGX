@@ -1,0 +1,12 @@
+enclave {
+    untrusted {
+        void ocall_PRE();
+        void ocall_print_string([in, string] const char*str);
+        void ocall_element_printf([in, size=len_g] uint8_t *buffer_g, size_t len_g, int additional_value);
+    };
+    trusted {
+        
+        public void ecall_PRE();
+
+    };
+};
