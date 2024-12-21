@@ -40,12 +40,16 @@ void printf_element(element_t G ,int addition){
 // 打印字节数组（用于调试）
 void print_byte_array(unsigned char* array, int len) {
     for (int i = 0; i < len; i++) {
-        printf("%02x ", array[i]);
+        for (int j = 7; j >= 0; j--) {
+            // 输出每个字节的每一位，按从高到低的顺序
+            printf("%d", (array[i] >> j) & 1);
+        }
+        printf(" ");  // 每个字节后添加空格
     }
     printf("\n");
 }
 
-//字符串转字节
+//字符串转字节流
 void string_to_bytes(const char* str, unsigned char* buffer, int& len) {
     len = strlen(str);  // 获取字符串长度，不包括末尾的'\0'
     for (int i = 0; i < len; i++) {
@@ -53,29 +57,57 @@ void string_to_bytes(const char* str, unsigned char* buffer, int& len) {
     }
 }
 
-//字节级异或
-void xor_byte(unsigned char* buffer1, int len1, unsigned char* buffer2, int len2, unsigned char* result, int& len_result) {
-
-    // 确保两个输入长度相同
-    if(len1 != len2) {
-        printf("Warning: Input lengths differ: %d != %d\n", len1, len2);
+//字节流转字符串
+void bytes_to_string(const unsigned char* buffer, int len, char* str) {
+    for (int i = 0; i < len; i++) {
+        str[i] = (char) buffer[i];  // 将字节逐个转换为字符
     }
-    
-    int max_len = (len1 > len2) ? len1 : len2;
-     // 分配内存空间给异或结果
-    result = (unsigned char*) malloc(max_len * sizeof(unsigned char));
-    
-    // 直接进行异或操作
-    for (int i = 0; i < max_len; i++) {
-        unsigned char byte1 = (i < len1) ? buffer1[i] : 0;
-        unsigned char byte2 = (i < len2) ? buffer2[i] : 0;
-        result[i] = byte1 ^ byte2;
-    }
-    len_result=max_len;
-    
+    str[len] = '\0';  // 在字符串末尾添加终止符
 }
 
 
+//字节级异或
+void xor_byte(unsigned char* buffer1, int len1, unsigned char* buffer2, int len2, unsigned char* result, int& len_result) {
+    // 确保两个输入长度相同
+    // if (len1 != len2) {
+    //     printf("Warning: Input lengths differ: %d != %d\n", len1, len2);
+    // }
+
+    int max_len = (len1 > len2) ? len1 : len2;  // 选择较大的长度
+    
+    // 执行异或操作并填充 result
+    for (int i = 0; i < max_len; i++) {
+        unsigned char byte1 = (i < max_len - len1) ? 0 : buffer1[i - (max_len - len1)];  // buffer1 前补零
+        unsigned char byte2 = (i < max_len - len2) ? 0 : buffer2[i - (max_len - len2)];  // buffer2 前补零
+        result[i] = byte1 ^ byte2;  // 执行异或操作
+    }
+
+    len_result = max_len;  // 初始的长度
+    
+    // 删除前导零字节
+    int start_index = 0;
+    while (start_index < len_result && result[start_index] == 0) {
+        start_index++;  // 寻找第一个不为0的字节
+    }
+
+    // 计算新的有效长度
+    if (start_index < len_result) {
+        // 剩余部分
+        for (int i = start_index; i < len_result; i++) {
+            result[i - start_index] = result[i];  // 移动数据到前面
+        }
+        len_result -= start_index;  // 更新有效长度
+    } else {
+        // 如果全是零，设置长度为 0
+        len_result = 0;
+    }
+
+   // Debug 输出
+    // printf("Result of xor (after trimming leading zeros): ");
+    // print_byte_array(result, len_result);  // 打印去掉前导零后的异或结果
+}
+
+//字符串转element
 void string_to_element(const char *str, element_t& e, pairing_t pairing) {
     // 获取字符串的长度
     size_t len = strlen(str);
@@ -128,6 +160,7 @@ void H1(unsigned char* m, int len,element_t R, element_t& output, pairing_t pair
 
     // 设置输出为群 Zr 中的元素
     element_set(output, temp);
+    //printf_element(output,0);
 
     element_clear(temp);
     delete[] combined_input;
@@ -314,6 +347,7 @@ void Enc2(element_t pk, unsigned char* m,int len_m, element_t w, element_t& C1,e
     element_pow_zn(C1,g,r); //C1=g^r
     //printf("c1\n");
 
+
     //C2 is GT
     element_t h2;
     element_init_G1(h2,pairing);
@@ -331,21 +365,20 @@ void Enc2(element_t pk, unsigned char* m,int len_m, element_t w, element_t& C1,e
     unsigned char buffer_h3[512]; 
     int len_h3;               // 预留足够的空间
     H3(R,buffer_h3,len_h3,pairing);       
+    xor_byte(m,len_m, buffer_h3,len_h3, C3, len_c3);  //m xor H3(R)
+    // printf("m\n");
+    // print_byte_array(m,len_m);
+    // printf("h3\n");
+    // print_byte_array(buffer_h3,len_h3);
+    // printf("C3\n");
+    // print_byte_array(C3,len_c3);
 
-    xor_element(m,len_m, buffer_h3,len_h3, C3, len_c3);  //m xor H3(R)
-    printf("m\n");
-    print_byte_array(m,len_m);
-    printf("h3\n");
-    print_byte_array(buffer_h3,len_h3);
-    printf("C3\n");
-    print_byte_array(C3,len_c3);
 
     //C4 is G1
     element_t temp4;
     element_init_G1(temp4,pairing);
     H4(C1,C2,C3,len_c3,temp4,pairing);
     element_pow_zn(C4,temp4,r); //H4(C1, C2, C3)^r
-    //printf("c4\n");
 
 
     element_clear(R);
@@ -357,70 +390,71 @@ void Enc2(element_t pk, unsigned char* m,int len_m, element_t w, element_t& C1,e
 
 }
 
-// void Dec2(element_t pk, element_t sk, element_t w, element_t C1, element_t C2, element_t C3, element_t C4, pairing_t pairing, element_t g, element_t& output){
-//     element_t e1, e2,e3, h4, h2, temp_e, R , r, temp_g;
-//     element_init_GT(e1,pairing);
-//     element_init_GT(e2,pairing);
-//     element_init_GT(e3,pairing);
-//     element_init_G1(h4,pairing);
-//     element_init_G1(h2,pairing);
-//     element_init_GT(temp_e,pairing);
-//     element_init_GT(R,pairing);
-//     element_init_Zr(r,pairing);
-//     element_init_G1(temp_g,pairing);
+void Dec2(element_t pk, element_t sk, element_t w, element_t C1, element_t C2, unsigned char* C3, int& len_c3, element_t C4, pairing_t pairing, element_t g,unsigned char* output, int& output_len){
+    element_t e1, e2,e3, h4, h2, temp_e, R , r, temp_g;
+    element_init_GT(e1,pairing);
+    element_init_GT(e2,pairing);
+    element_init_GT(e3,pairing);
+    element_init_G1(h4,pairing);
+    element_init_G1(h2,pairing);
+    element_init_GT(temp_e,pairing);
+    element_init_GT(R,pairing);
+    element_init_Zr(r,pairing);
+    element_init_G1(temp_g,pairing);
 
-//     pairing_apply(e2,g,C4,pairing); //e(g,C4)
-//     H4(C1,C2,C3,h4,pairing); //H4(C1,C2,C3)
-//     pairing_apply(e1,C1,h4,pairing); //e(C1,H4(C1,C2,C3))
+    pairing_apply(e2,g,C4,pairing); //e(g,C4)
+    H4(C1,C2,C3,len_c3,h4,pairing); //H4(C1,C2,C3)
+    pairing_apply(e1,C1,h4,pairing); //e(C1,H4(C1,C2,C3))
 
-//     if (element_cmp(e1,e2)!=0){
-//         printf("解密失败1！");
-//     }else{
-//         H2(pk,w,h2,pairing);//H2(pk,w)
-//         pairing_apply(e3,C1,h2,pairing); 
-//         element_pow_zn(temp_e,e3,sk);  // temp2 = e(C1,H2(pk,w))^sk
+    if (element_cmp(e1,e2)!=0){
+        printf("解密失败1！");
+    }else{
+        H2(pk,w,h2,pairing);//H2(pk,w)
+        pairing_apply(e3,C1,h2,pairing); 
+        element_pow_zn(temp_e,e3,sk);  // temp2 = e(C1,H2(pk,w))^sk
 
-//         element_div(R,C2,temp_e);    //  R= C2 / e(C1,H2(pk,w))^sk
-//         unsigned char buffer_h3[512];
-//         H3(R,buffer_h3,pairing);  //H3(R)
+        element_div(R,C2,temp_e);    //  R= C2 / e(C1,H2(pk,w))^sk
+        unsigned char buffer_h3[512];
+        int len_h3;
+        H3(R,buffer_h3,len_h3,pairing);  //H3(R)
 
-//         unsigned char buffer_m[512];
+        unsigned char buffer_m[512];
+        int len_m;
+        xor_byte(C3, len_c3, buffer_h3, len_h3, buffer_m, len_m);  // buffer_m= C3 xor H3(R)
+        // printf("m\n");
+        // print_byte_array(buffer_m,len_m);
+        // printf("h3\n");
+        // print_byte_array(buffer_h3,len_h3);
+        // printf("C3\n");
+        // print_byte_array(C3,len_c3);
 
-//         xor_element(C3,buffer_h3,buffer_m,len_m);  // buffer_m= C3 xor H3(R)
-//         printf("m\n");
-//         int len = sizeof(buffer_m);
-//         print_byte_array(buffer_m,len)
-//         printf("h3\n");
-//         printf_element(h3,1);
-//         printf("C3\n");
-//         printf_element(C3,1);
-
-//         H1(buffer_m,len_m,R,r,pairing);  //r=H1(m,R)
+        H1(buffer_m,len_m,R,r,pairing);  //r=H1(m,R)
          
-//         element_pow_zn(temp_g,g,r); // g^(H1(m,R))
+        element_pow_zn(temp_g,g,r); // g^(H1(m,R))
 
 
-//         if(element_cmp(temp_g,C1)==0){
-//             element_set(output,temp_m);
-//         }else{
-//             printf("解密失败2！");
-//         }
-//     }
+        if(element_cmp(temp_g,C1)==0){
+            printf("解密成功！");
+            memcpy(output, buffer_m, len_m); 
+            output_len=len_m;
+            //print_byte_array(output,output_len);
+        }else{
+            printf("解密失败2!");
+        }
+    }
 
-//     element_clear(e1);
-//     element_clear(e2);
-//     element_clear(e3);
-//     element_clear(h4);
-//     element_clear(h2);
-//     element_clear(temp_e);
-//     element_clear(R);
-//     element_clear(h3);
-//     element_clear(r);
-//     element_clear(temp_g);
-//     element_clear(temp_m);
+    element_clear(e1);
+    element_clear(e2);
+    element_clear(e3);
+    element_clear(h4);
+    element_clear(h2);
+    element_clear(temp_e);
+    element_clear(R);
+    element_clear(r);
+    element_clear(temp_g);
 
 
-// }
+}
 
 void ecall_PRE()
 {
@@ -489,8 +523,11 @@ void ecall_PRE()
     int len_m;
     string_to_bytes(m,buffer_m,len_m);
 
-    printf("明文M: ");
+    printf("明文m: \n");
+    printf("字符串：%s\n",m);
+    printf("字节流：");
     print_byte_array(buffer_m,len_m);
+
    
     Enc2(pk_i,buffer_m ,len_m, w, C1,C2,C3,len_c3,C4, pairing,g);
     printf("\n二级密文CT:  ");
@@ -503,12 +540,16 @@ void ecall_PRE()
     printf("\nC4:  ");
     printf_element(C4,1);
 
-    // printf("\n解密: \n");
-    // element_t dec_m;
-    // element_init_G1(dec_m,pairing);
-    // Dec2(pk_i,sk_i,w,C1,C2,C3,C4,pairing,g,dec_m);
-    // printf("\nm:  ");
-    // printf_element(dec_m,1);
+    printf("\n解密: \n");
+    unsigned char decM[512];
+    int len_decM;
+    char str[512];
+
+    Dec2(pk_i,sk_i,w,C1,C2,C3,len_c3,C4,pairing,g,decM,len_decM);
+    printf("\nm:  \n");
+    bytes_to_string(decM,len_decM,str);
+    printf("%s\n",str);
+    print_byte_array(decM,len_decM);
 
 
     // 清理元素
