@@ -390,7 +390,7 @@ void Enc2(element_t pk, unsigned char* m,int len_m, element_t w, element_t& C1,e
 
 }
 
-void Dec2(element_t pk, element_t sk, element_t w, element_t C1, element_t C2, unsigned char* C3, int& len_c3, element_t C4, pairing_t pairing, element_t g,unsigned char* output, int& output_len){
+void Dec2(element_t pk, element_t sk, element_t w, element_t C1, element_t C2, unsigned char* C3, int len_c3, element_t C4, pairing_t pairing, element_t g,unsigned char* output, int& output_len){
     element_t e1, e2,e3, h4, h2, temp_e, R , r, temp_g;
     element_init_GT(e1,pairing);
     element_init_GT(e2,pairing);
@@ -502,7 +502,7 @@ void Enc1(element_t pk, unsigned char* m, int len_m, element_t&c1,element_t& c2,
 
 }
 
-void Dec1(element_t sk,element_t c1, element_t c2, unsigned char* c3, int& len_c3, element_t c4, pairing_t pairing, element_t g,unsigned char* output, int& output_len){
+void Dec1(element_t sk,element_t c1, element_t c2, unsigned char* c3, int len_c3, element_t c4, pairing_t pairing, element_t g,unsigned char* output, int& output_len){
 
     element_t R,e;
     element_init_GT(R,pairing);
@@ -548,6 +548,38 @@ void Dec1(element_t sk,element_t c1, element_t c2, unsigned char* c3, int& len_c
 
 }
 
+void ReEnc(element_t rk1,element_t rk2,element_t c1,element_t c2, unsigned char* c3, int len_c3, element_t c4,
+            element_t c_1,element_t c_2, unsigned char* c_3, int& len_c_3, element_t c_4, pairing_t pairing, element_t g ){
+        
+    element_t temp1,temp2,temp3;
+    element_init_G1(temp1,pairing);
+    element_init_GT(temp2,pairing);
+    element_init_GT(temp3,pairing);
+    H4(c1,c2,c3,len_c3,temp1,pairing);
+    pairing_apply(temp2,c1,temp1,pairing);//temp2=e(c1,H4(c1,c2,c3));
+    pairing_apply(temp3,g,c4,pairing);
+    if(element_cmp(temp2,temp3)!=0){
+         printf("重加密错误！\n");
+    }else{
+
+        element_t e;
+        element_init_GT(e,pairing);
+        pairing_apply(e,c1,rk1,pairing); //e(c1,rk1)
+        element_mul(c_2,c2,e);   //c_2=c2 * e(c1,rk1)
+        element_set(c_1,c1);
+        memcpy(c_3,c3,len_c3);
+        len_c_3=len_c3;
+        element_set(c_4,rk2);
+
+        element_clear(e);
+    }
+
+    element_clear(temp1);
+    element_clear(temp2);
+    element_clear(temp3);
+
+}
+
 void ecall_PRE()
 {
     pairing_t pairing;
@@ -555,6 +587,7 @@ void ecall_PRE()
     element_t pk_j, sk_j;
     element_t rk1,rk2,w;
     element_t C1,C2,C4;
+    element_t C_1,C_2,C_4;
 
      
     
@@ -576,6 +609,8 @@ void ecall_PRE()
     pairing_init_pbc_param(pairing, par);
 
     initialize(pairing);  
+   
+    //参数初始化
     element_init_G1(pk_i,pairing);
     element_init_Zr(sk_i,pairing);
     element_init_G1(pk_j,pairing);
@@ -585,33 +620,28 @@ void ecall_PRE()
     element_init_G1(rk2,pairing);
     element_init_G1(w,pairing);
     element_random(w);
-
+    
+    //二级密文初始化
     element_init_G1(C1,pairing);
     element_init_GT(C2,pairing);
     element_init_G1(C4,pairing);
     unsigned char C3[512];
     int len_c3;
+    //一级密文初始化
+    element_init_G1(C_1,pairing);
+    element_init_GT(C_2,pairing);
+    element_init_G1(C_4,pairing);
+    unsigned char C_3[512];
+    int len_c_3;
 
 
     KeyGen(pairing, pk_i, sk_i,g);
-    //KeyGen(pairing, pk_j, sk_j,g);
-    //ReKeyGen(rk1,rk2,sk_i,pk_i,pk_j,w,pairing);
-  
-    // 打印公钥和私钥
-    printf("\n公钥pki:  ");
-    printf_element(pk_i,1);
-    printf("私钥ski:  ");
-    printf_element(sk_i,0);
+    KeyGen(pairing, pk_j, sk_j,g);
+    ReKeyGen(rk1,rk2,sk_i,pk_i,pk_j,w,pairing);
 
-    // int len3,len4;
-    // unsigned char buffer_rk1[512], buffer_rk2[512];
-    // len3=element_to_bytes(buffer_rk1, rk1);
-    // len4=element_to_bytes(buffer_rk2, rk2);
-    // ocall_element_printf(buffer_rk1, len3, 1);
-    // ocall_element_printf(buffer_rk2, len4, 1);
-
+    //原明文m
     unsigned char buffer_m[512];
-    char m[]="0123456789";
+    char m[]="lx0123456789";
     int len_m;
     string_to_bytes(m,buffer_m,len_m);
 
@@ -620,29 +650,57 @@ void ecall_PRE()
     printf("字节流：");
     print_byte_array(buffer_m,len_m);
 
-   
-    //Enc2(pk_i,buffer_m ,len_m, w, C1,C2,C3,len_c3,C4, pairing,g);
-    Enc1(pk_i,buffer_m,len_m,C1,C2,C3,len_c3,C4,pairing,g);
-    printf("\n二级密文CT:  ");
+  
+    // 打印公钥和私钥
+    printf("\n二级公钥pki:  ");
+    printf_element(pk_i,1);
+    printf("二级私钥ski:  ");
+    printf_element(sk_i,0);
+    printf("一级私钥pkj:  ");
+    printf_element(pk_j,1);
+    printf("一级私钥skj:  ");
+    printf_element(sk_j,0);
+    printf("\n重加密密钥rk1,rk2: \n");
+    printf_element(rk1,1);
+    printf_element(rk2,1);
+    
+    //使用用户i的公钥加密为二级密文
+    Enc2(pk_i,buffer_m ,len_m, w, C1,C2,C3,len_c3,C4, pairing,g);
+    //Enc1(pk_i,buffer_m,len_m,C1,C2,C3,len_c3,C4,pairing,g);
+    printf("\n用户i加密,二级密文CT:  ");
     printf("\nC1:  ");
     printf_element(C1,1);
-    printf("\nC2:  ");
+    printf("C2:  ");
     printf_element(C2,3);
-    printf("\nC3:  ");
+    printf("C3:  ");
     print_byte_array(C3,len_c3);
-    printf("\nC4:  ");
+    printf("C4:  ");
     printf_element(C4,1);
 
-    printf("\n解密: \n");
+    //代理重加密，将二级密文转换为一级密文
+    ReEnc(rk1,rk2, C1,C2,C3,len_c3,C4,  C_1,C_2,C_3,len_c_3,C_4,  pairing,g);
+    printf("\n代理重加密,一级密文CT:  ");
+    printf("\nC_1:  ");
+    printf_element(C_1,1);
+    printf("C_2:  ");
+    printf_element(C_2,3);
+    printf("C_3:  ");
+    print_byte_array(C_3,len_c_3);
+    printf("C_4:  ");
+    printf_element(C_4,1);
+
+    //使用用户j的私钥解密
+    printf("\n用户j解密 \n");
     unsigned char decM[512];
     int len_decM;
     char str[512];
 
     // Dec2(pk_i,sk_i,w,C1,C2,C3,len_c3,C4,pairing,g,decM,len_decM);
-    Dec1(sk_i,C1,C2,C3,len_c3,C4,pairing,g,decM,len_decM);
-    printf("\nm:  \n");
+    Dec1(sk_j,C_1,C_2,C_3,len_c_3,C_4,pairing,g,decM,len_decM);
     bytes_to_string(decM,len_decM,str);
-    printf("%s\n",str);
+    printf("\n解密结果: \n");
+    printf("字符串：%s\n",str);
+    printf("字节流：");
     print_byte_array(decM,len_decM);
 
 
@@ -658,7 +716,9 @@ void ecall_PRE()
     element_clear(C1);
     element_clear(C2);
     element_clear(C4);
-    //element_clear(dec_m);
+    element_clear(C_1);
+    element_clear(C_2);
+    element_clear(C_4);
     pairing_clear(pairing);
 
 }
