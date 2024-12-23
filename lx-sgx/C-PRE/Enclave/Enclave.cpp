@@ -456,6 +456,98 @@ void Dec2(element_t pk, element_t sk, element_t w, element_t C1, element_t C2, u
 
 }
 
+void Enc1(element_t pk, unsigned char* m, int len_m, element_t&c1,element_t& c2,unsigned char* c3,int& len_c3,element_t& c4, pairing_t pairing,element_t g ){
+    element_t R,r,e,s;
+    element_init_GT(R,pairing);
+    element_init_Zr(r,pairing);
+    element_init_GT(e, pairing);
+    element_init_Zr(s,pairing);
+    element_random(R);
+    element_random(s);
+
+    //计算r
+    H1(m,len_m,R,r,pairing);
+
+    //c1=g^r
+    element_pow_zn(c1,g,r);
+    
+    //c2=R * e(g,pk)^(-r*s)
+    element_t temp1,temp2,temp3;
+    element_init_Zr(temp1,pairing);
+    element_init_Zr(temp2,pairing);
+    element_init_GT(temp3,pairing);
+    pairing_apply(e,g,pk,pairing);//e(g,pk)
+    element_mul(temp1,r,s);
+    element_neg(temp2,temp1); //-r*s
+    element_pow_zn(temp3,e,temp2); //e(g,pk)^(-r*s)
+    element_mul(c2,R,temp3);
+   
+    //c3=m xor H3(R)
+    unsigned char buffer_h3[512]; 
+    int len_h3;               // 预留足够的空间
+    H3(R,buffer_h3,len_h3,pairing);       
+    xor_byte(m,len_m, buffer_h3,len_h3, c3, len_c3);  //m xor H3(R)
+
+    //c4=g^s
+    element_pow_zn(c4,g,s);
+
+
+    element_clear(R);
+    element_clear(r);
+    element_clear(e);
+    element_clear(s);
+    element_clear(temp1);
+    element_clear(temp2);
+    element_clear(temp3);
+
+}
+
+void Dec1(element_t sk,element_t c1, element_t c2, unsigned char* c3, int& len_c3, element_t c4, pairing_t pairing, element_t g,unsigned char* output, int& output_len){
+
+    element_t R,e;
+    element_init_GT(R,pairing);
+    element_init_GT(e,pairing);
+
+    //R=c2 * e(c1,c4)^sk
+    pairing_apply(e,c1,c4,pairing);
+    element_t temp1;
+    element_init_GT(temp1,pairing);
+    element_pow_zn(temp1,e,sk);
+    element_mul(R,c2,temp1);
+
+
+    //m= c3 xor H3(R)
+    unsigned char buffer_h3[512];
+    int len_h3;
+    H3(R,buffer_h3,len_h3,pairing);  //H3(R)
+    unsigned char buffer_m[512];
+    int len_m;
+    xor_byte(c3, len_c3, buffer_h3, len_h3, buffer_m, len_m);  // buffer_m= C3 xor H3(R)
+
+
+    element_t r,temp2;
+    element_init_Zr(r,pairing);
+    element_init_G1(temp2,pairing);
+    H1(buffer_m,len_m,R,r,pairing);  //r=H1(m,R)
+    element_pow_zn(temp2,g,r); // g^(H1(m,R))
+
+    if(element_cmp(temp2,c1)==0){
+        printf("解密成功！");
+        memcpy(output, buffer_m, len_m); 
+        output_len=len_m;
+        //print_byte_array(output,output_len);
+    }else{
+        printf("解密失败2!");
+    } 
+
+    element_clear(R);
+    element_clear(e);
+    element_clear(temp1);
+    element_clear(r);
+    element_clear(temp2);
+
+}
+
 void ecall_PRE()
 {
     pairing_t pairing;
@@ -529,7 +621,8 @@ void ecall_PRE()
     print_byte_array(buffer_m,len_m);
 
    
-    Enc2(pk_i,buffer_m ,len_m, w, C1,C2,C3,len_c3,C4, pairing,g);
+    //Enc2(pk_i,buffer_m ,len_m, w, C1,C2,C3,len_c3,C4, pairing,g);
+    Enc1(pk_i,buffer_m,len_m,C1,C2,C3,len_c3,C4,pairing,g);
     printf("\n二级密文CT:  ");
     printf("\nC1:  ");
     printf_element(C1,1);
@@ -545,7 +638,8 @@ void ecall_PRE()
     int len_decM;
     char str[512];
 
-    Dec2(pk_i,sk_i,w,C1,C2,C3,len_c3,C4,pairing,g,decM,len_decM);
+    // Dec2(pk_i,sk_i,w,C1,C2,C3,len_c3,C4,pairing,g,decM,len_decM);
+    Dec1(sk_i,C1,C2,C3,len_c3,C4,pairing,g,decM,len_decM);
     printf("\nm:  \n");
     bytes_to_string(decM,len_decM,str);
     printf("%s\n",str);
