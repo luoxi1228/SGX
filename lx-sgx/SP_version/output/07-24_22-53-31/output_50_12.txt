@@ -1,0 +1,20 @@
+epoch Num is 50 
+Core Num max is 8 
+Select  Core_Num is 12 
+SET_STATIC_SIZE --- 
+APP:G1 = 256 bytes
+APP:G2 = 256 bytes
+APP:GT = 256 bytes
+APP:Zr = 64 bytes
+Enclave:G1 = 256 bytes
+Enclave:G2 = 256 bytes
+Enclave:GT = 256 bytes
+Enclave:Zr = 64 bytes
+Enclave init 耗时:30.5003100002 ms
+50次 t1(APP) 平均耗时:53.0757 ms
+50次 t2(Enclave) 平均耗时:1.6015 ms
+50次 dec 平均耗时:1.6485 ms
+50次 多线程平均等待耗时:1036.2498 ms
+总耗时:1790.4881 ms
+Info: successfully returned.
+任务数量:50 内核数:12 理想平均等待时间：384 毫秒

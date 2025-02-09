@@ -1,0 +1,14 @@
+enclave {
+    trusted {
+        public void prerequisite([in]size_t *C1_size);
+        public void before();
+        public void after();
+        public void transform2([in,out]unsigned char** tc_str,[in,out]size_t * tc_str_count,
+                               [in]unsigned char** rk_str,[in]size_t *rk_str_count,[in]unsigned char** ptc_str,[in]size_t *ptc_str_count);
+    };
+
+    untrusted {
+        void ocall_print_string([in, string] const char *str);
+    };
+};
+
