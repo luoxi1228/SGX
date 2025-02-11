@@ -87,13 +87,13 @@ sign0 1";
     printf("APP:GT = %ld bytes\n", GT_SIZE);
     printf("APP:Zr = %ld bytes\n", ZR_SIZE);
 
-    abe2od.Setup(pairing);
+    abe2od.Setup(pairing);// 初始化得到(PK,MSK)
 
     // encryption
-    string access_policy = "(A1,A2,A3,A4,A5,A6,A7,A8,A9,A10,10)";
+    string access_policy = "(A1,A2,A3,A4,A5,A6,A7,A8,A9,A10,10)";//测试的访问策略为10个属性必须全部满足
     LSSS lsss(access_policy);
     const size_t desiredBitLength = 256; // 所需的位数
-    M = generateBinaryHash(desiredBitLength);
+    M = generateBinaryHash(desiredBitLength);//随机设置明文M的hash值
     Ciphertext cipher;
     abe2od.Enc(cipher, M, lsss, pairing);
     cipher_C1_size = cipher.C1.size();

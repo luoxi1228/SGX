@@ -27,7 +27,7 @@ void showstack(stack<pair<vector<int>, string>> stk)
     }
 }
 
-void LSSS::parseString(stack<pair<vector<int>, string>> &stk, pair<vector<int>, string> &pair, int& counter) {
+void LSSS::parseString(stack<pair<vector<int>, string>> &stk, pair<vector<int>, string> &pair, int& counter) {//实现策略树转换为矩阵
     if(pair.second.at(0) != '(')
     {
         M.push_back(pair.first);

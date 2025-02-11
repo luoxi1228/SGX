@@ -178,17 +178,52 @@ void ocall_print_string(const char *str)
 int SGX_CDECL main(int argc, char *argv[])
 {
 
-    double start_time, end_time;//开始时间与结束时间
-    int result = initialize_enclave();//创建 Enclave
+     double start_time, end_time;//开始时间与结束时间
+    // int result = initialize_enclave();//创建 Enclave
 
-    // 创建线程并启动
-    const int num_tasks = atoi(argv[1]);//100 200 300 400 500
-    printf("epoch Num is %d \n", num_tasks);
-    int coreNum = omp_get_num_procs();//获得处理器个数
-    printf("Core Num max is %d \n", coreNum);
-    int cpu_number = atoi(argv[2]);//1 3 6 9 12
-    omp_set_num_threads(cpu_number);//指定并行区内线程个数
-    printf("Select  Core_Num is %d \n",cpu_number);
+    // // 创建线程并启动
+    // if (argc < 3) {
+    //     std::cerr << "Error: Missing arguments.\n";
+    //     return 1;
+    // }    
+    // const int num_tasks = std::atoi(argv[1]);//100 200 300 400 500
+    // printf("epoch Num is %d \n", num_tasks);
+    // int coreNum = omp_get_num_procs();//获得处理器个数
+    // printf("Core Num max is %d \n", coreNum);
+    // int cpu_number = atoi(argv[2]);//1 3 6 9 12
+    // omp_set_num_threads(cpu_number);//指定并行区内线程个数
+    // printf("Select  Core_Num is %d \n",cpu_number);
+        // **参数检查**
+    if (argc < 3) {
+        cerr << "错误: 缺少参数。\n";
+        cerr << "用法: " << argv[0] << " <任务数> <核心数>\n";
+        cerr << "示例: " << argv[0] << " 100 4\n";
+        return 1; // 返回错误码 1
+    }
+
+    // **解析命令行参数**
+    const int num_tasks = std::atoi(argv[1]); // 任务数
+    const int cpu_number = std::atoi(argv[2]); // CPU 核心数
+
+    if (num_tasks <= 0 || cpu_number <= 0) {
+        cerr << "错误: 任务数和核心数必须为正整数。\n";
+        return 1;
+    }
+
+    // **获取 CPU 核心数**
+    int coreNum = omp_get_num_procs();
+    cout << "总核心数: " << coreNum << "\n";
+    cout << "指定使用的核心数: " << cpu_number << "\n";
+
+    // **设置 OpenMP 线程数**
+    omp_set_num_threads(cpu_number);
+    
+    // **初始化 Enclave**
+    int result = initialize_enclave();
+    if (result != 0) {
+        cerr << "错误: Enclave 初始化失败。\n";
+        return 1;
+    }
     step_1_enc();
     
     double t_sum = 0.0;
